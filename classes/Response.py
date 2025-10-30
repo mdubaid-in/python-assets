@@ -10,14 +10,14 @@ from datetime import datetime
 from app.log.logging import logger
 
 
-class ResponseStatus(Enum):
+class ResponseStatusText(Enum):
     """Response status types"""
 
     SUCCESS = "success"
     ERROR = "error"
     WARNING = "warning"
     INFO = "info"
-    PARTIAL_SUCCESS = "partial_success"
+    PARTIAL_SUCCESS = "partial success"
     TIMEOUT = "timeout"
     CANCELLED = "cancelled"
     PENDING = "pending"
@@ -35,8 +35,8 @@ class ResponseType(Enum):
     VALIDATION = "validation"
     AUTHENTICATION = "authentication"
     AUTHORIZATION = "authorization"
-    BUSINESS_LOGIC = "business_logic"
-    EXTERNAL_SERVICE = "external_service"
+    BUSINESS_LOGIC = "business logic"
+    EXTERNAL_SERVICE = "external service"
     SYSTEM = "system"
 
 
@@ -67,12 +67,12 @@ class Response:
 
     def __init__(
         self,
-        status_code: int = 200,
+        status: int = 200,
         message: str = "Success",
         data: Any = None,
         errors: Optional[List[Dict[str, Any]]] = None,
         warnings: Optional[List[str]] = None,
-        status: ResponseStatus = ResponseStatus.SUCCESS,
+        status_text: ResponseStatusText = ResponseStatusText.SUCCESS,
         response_type: ResponseType = ResponseType.HTTP,
         metadata: Optional[Dict[str, Any]] = None,
         headers: Optional[Dict[str, str]] = None,
@@ -105,12 +105,12 @@ class Response:
             auto_log: Whether to automatically log the response
             **kwargs: Additional custom fields
         """
-        self.status_code = status_code
+        self.status = status
         self.message = message
         self.data = data
         self.errors = errors or []
         self.warnings = warnings or []
-        self.status = status
+        self.status_text = status_text
         self.response_type = response_type
         self.metadata = metadata or {}
         self.headers = headers or {}
@@ -131,7 +131,7 @@ class Response:
     def _log_response(self):
         """Log the response based on its status and level"""
         log_message = (
-            f"[{self.response_type.value.upper()}] {self.status_code} - {self.message}"
+            f"[{self.response_type.value.upper()}] {self.status} - {self.message}"
         )
 
         if self.request_id:
@@ -144,16 +144,16 @@ class Response:
             log_message += f" from {self.source}"
 
         # Log based on status and level
-        if self.status == ResponseStatus.SUCCESS:
+        if self.status_text == ResponseStatusText.SUCCESS:
             logger.success(log_message)
 
-        elif self.status == ResponseStatus.ERROR:
+        elif self.status_text == ResponseStatusText.ERROR:
             logger.error(log_message)
             if self.errors:
                 for error in self.errors:
                     logger.error(f"  Error: {error}")
 
-        elif self.status == ResponseStatus.WARNING:
+        elif self.status_text == ResponseStatusText.WARNING:
             logger.warning(log_message)
 
         else:
@@ -162,17 +162,20 @@ class Response:
     @property
     def is_success(self) -> bool:
         """Check if response indicates success"""
-        return self.status in [ResponseStatus.SUCCESS, ResponseStatus.PARTIAL_SUCCESS]
+        return self.status_text in [
+            ResponseStatusText.SUCCESS,
+            ResponseStatusText.PARTIAL_SUCCESS,
+        ]
 
     @property
     def is_error(self) -> bool:
         """Check if response indicates error"""
-        return self.status == ResponseStatus.ERROR
+        return self.status_text == ResponseStatusText.ERROR
 
     @property
     def is_warning(self) -> bool:
         """Check if response indicates warning"""
-        return self.status == ResponseStatus.WARNING
+        return self.status_text == ResponseStatusText.WARNING
 
     @property
     def has_data(self) -> bool:
@@ -197,14 +200,14 @@ class Response:
             error_dict = error
 
         self.errors.append(error_dict)
-        if self.status == ResponseStatus.SUCCESS:
-            self.status = ResponseStatus.ERROR
+        if self.status_text == ResponseStatusText.SUCCESS:
+            self.status_text = ResponseStatusText.ERROR
 
     def add_warning(self, warning: str):
         """Add a warning to the response"""
         self.warnings.append(warning)
-        if self.status == ResponseStatus.SUCCESS:
-            self.status = ResponseStatus.WARNING
+        if self.status_text == ResponseStatusText.SUCCESS:
+            self.status_text = ResponseStatusText.WARNING
 
     def add_metadata(self, key: str, value: Any):
         """Add metadata to the response"""
@@ -217,12 +220,11 @@ class Response:
     def to_dict(self) -> Dict[str, Any]:
         """Convert response to dictionary"""
         result = {
-            "status_code": self.status_code,
+            "status": self.status,
             "message": self.message,
-            "status": self.status.value,
-            "response_type": self.response_type.value,
+            "statusText": self.status_text.value,
+            "responseType": self.response_type.value,
             "timestamp": self.timestamp.isoformat(),
-            "success": self.is_success,
         }
 
         if self.data is not None:
@@ -241,10 +243,10 @@ class Response:
             result["headers"] = self.headers
 
         if self.request_id:
-            result["request_id"] = self.request_id
+            result["requestId"] = self.request_id
 
         if self.duration_ms:
-            result["duration_ms"] = self.duration_ms
+            result["durationMs"] = self.duration_ms
 
         if self.source:
             result["source"] = self.source
@@ -258,10 +260,10 @@ class Response:
     def to_http_dict(self) -> Dict[str, Any]:
         """Convert to HTTP-compatible dictionary"""
         response = {
-            "status_code": self.status_code,
+            "status": self.status,
             "message": self.message,
             "data": self.data,
-            "status": self.status,
+            "statusText": self.status_text.value,
         }
 
         if self.errors:
@@ -274,12 +276,12 @@ class Response:
 
     def __str__(self) -> str:
         """String representation of the response"""
-        return f"Response({self.status_code}, {self.status.value}, {self.message})"
+        return f"Response({self.status}, {self.status_text.value}, {self.message})"
 
     def __repr__(self) -> str:
         """Detailed string representation"""
         return (
-            f"Response(status_code={self.status_code}, status={self.status.value}, "
+            f"Response(status={self.status}, statusText={self.status_text.value}, "
             f"message='{self.message}', type={self.response_type.value})"
         )
 
@@ -292,15 +294,15 @@ class Response:
         cls,
         message: str = "Success",
         data: Any = None,
-        status_code: int = 200,
+        status: int = 200,
         **kwargs,
     ) -> "Response":
         """Create a success response"""
         return cls(
-            status_code=status_code,
+            status=status,
             message=message,
             data=data,
-            status=ResponseStatus.SUCCESS,
+            status_text=ResponseStatusText.SUCCESS,
             **kwargs,
         )
 
@@ -309,15 +311,15 @@ class Response:
         cls,
         message: str = "Error",
         errors: Optional[List[Dict[str, Any]]] = None,
-        status_code: int = 500,
+        status: int = 500,
         **kwargs,
     ) -> "Response":
         """Create an error response"""
         return cls(
-            status_code=status_code,
+            status=status,
             message=message,
             errors=errors or [],
-            status=ResponseStatus.ERROR,
+            status_text=ResponseStatusText.ERROR,
             log_level=ResponseLevel.ERROR,
             **kwargs,
         )
@@ -327,15 +329,15 @@ class Response:
         cls,
         message: str = "Warning",
         warnings: Optional[List[str]] = None,
-        status_code: int = 200,
+        status: int = 200,
         **kwargs,
     ) -> "Response":
         """Create a warning response"""
         return cls(
-            status_code=status_code,
+            status=status,
             message=message,
             warnings=warnings or [],
-            status=ResponseStatus.WARNING,
+            status_text=ResponseStatusText.WARNING,
             log_level=ResponseLevel.WARNING,
             **kwargs,
         )
@@ -343,14 +345,14 @@ class Response:
     @classmethod
     def not_found(cls, message: str = "Resource not found", **kwargs) -> "Response":
         """Create a not found response"""
-        return cls.error(message=message, status_code=404, **kwargs)
+        return cls.error(message=message, status=404, **kwargs)
 
     @classmethod
     def unauthorized(cls, message: str = "Unauthorized access", **kwargs) -> "Response":
         """Create an unauthorized response"""
         return cls.error(
             message=message,
-            status_code=401,
+            status=401,
             response_type=ResponseType.AUTHENTICATION,
             **kwargs,
         )
@@ -360,7 +362,7 @@ class Response:
         """Create a forbidden response"""
         return cls.error(
             message=message,
-            status_code=403,
+            status=403,
             response_type=ResponseType.AUTHORIZATION,
             **kwargs,
         )
@@ -376,7 +378,7 @@ class Response:
         return cls.error(
             message=message,
             errors=errors,
-            status_code=400,
+            status=400,
             response_type=ResponseType.VALIDATION,
             **kwargs,
         )
@@ -385,9 +387,9 @@ class Response:
     def timeout(cls, message: str = "Request timeout", **kwargs) -> "Response":
         """Create a timeout response"""
         return cls(
-            status_code=408,
+            status=408,
             message=message,
-            status=ResponseStatus.TIMEOUT,
+            status_text=ResponseStatusText.TIMEOUT,
             log_level=ResponseLevel.WARNING,
             **kwargs,
         )
@@ -398,7 +400,7 @@ class Response:
     ) -> "Response":
         """Create Response from HTTP response object (requests.Response, etc.)"""
         try:
-            status_code = getattr(http_response, "status_code", 200)
+            status = getattr(http_response, "status", 200)
 
             # Try to extract JSON data
             data = None
@@ -421,25 +423,25 @@ class Response:
                 headers = dict(http_response.headers)
 
             # Determine status
-            if 200 <= status_code < 300:
-                status = ResponseStatus.SUCCESS
-            elif 400 <= status_code < 500:
-                status = ResponseStatus.ERROR
-            elif status_code >= 500:
-                status = ResponseStatus.ERROR
+            if 200 <= status < 300:
+                status_text = ResponseStatusText.SUCCESS
+            elif 400 <= status < 500:
+                status_text = ResponseStatusText.ERROR
+            elif status >= 500:
+                status_text = ResponseStatusText.ERROR
             else:
-                status = ResponseStatus.INFO
+                status_text = ResponseStatusText.INFO
 
             return cls(
-                status_code=status_code,
-                message=message or f"HTTP {status_code}",
-                data=data,
                 status=status,
+                message=message or f"HTTP {status}",
+                data=data,
+                status_text=status_text,
                 response_type=ResponseType.HTTP,
                 headers=headers,
                 auto_log=False,
             )
         except Exception as e:
             return cls.error(
-                message=f"Failed to parse HTTP response: {str(e)}", status_code=500
+                message=f"Failed to parse HTTP response: {str(e)}", status=500
             )
