@@ -7,7 +7,7 @@ import json
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 from datetime import datetime
-from utils.logging import logger
+from app.log.logging import logger
 
 
 class ResponseStatus(Enum):
@@ -19,7 +19,6 @@ class ResponseStatus(Enum):
     INFO = "info"
     PARTIAL_SUCCESS = "partial_success"
     TIMEOUT = "timeout"
-    TOO_MANY_REQUESTS = "too_many_requests"
     CANCELLED = "cancelled"
     PENDING = "pending"
 
@@ -74,7 +73,7 @@ class Response:
         errors: Optional[List[Dict[str, Any]]] = None,
         warnings: Optional[List[str]] = None,
         status: ResponseStatus = ResponseStatus.SUCCESS,
-        response_type: ResponseType = ResponseType.SERVICE,
+        response_type: ResponseType = ResponseType.HTTP,
         metadata: Optional[Dict[str, Any]] = None,
         headers: Optional[Dict[str, str]] = None,
         request_id: Optional[str] = None,
@@ -258,18 +257,20 @@ class Response:
 
     def to_http_dict(self) -> Dict[str, Any]:
         """Convert to HTTP-compatible dictionary"""
-        return {
+        response = {
             "status_code": self.status_code,
-            "body": {
-                "message": self.message,
-                "data": self.data,
-                "errors": self.errors,
-                "warnings": self.warnings,
-                "success": self.is_success,
-                "timestamp": self.timestamp.isoformat(),
-            },
-            "headers": self.headers,
+            "message": self.message,
+            "data": self.data,
+            "status": self.status,
         }
+
+        if self.errors:
+            response["errors"] = self.errors
+        if self.warnings:
+            response["warnings"] = self.warnings
+        if self.headers:
+            response["headers"] = self.headers
+        return response
 
     def __str__(self) -> str:
         """String representation of the response"""
@@ -387,19 +388,6 @@ class Response:
             status_code=408,
             message=message,
             status=ResponseStatus.TIMEOUT,
-            log_level=ResponseLevel.WARNING,
-            **kwargs,
-        )
-
-    @classmethod
-    def too_many_requests(
-        cls, message: str = "Too many requests", **kwargs
-    ) -> "Response":
-        """Create a too many requests response"""
-        return cls(
-            status_code=429,
-            message=message,
-            status=ResponseStatus.TOO_MANY_REQUESTS,
             log_level=ResponseLevel.WARNING,
             **kwargs,
         )
